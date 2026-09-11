@@ -19,7 +19,7 @@
     button { width: 100%; padding: 12px; background-color: #3498db; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold; }
     button:hover { background-color: #2980b9; }
     #chart-container { margin-top: 30px; position: relative; height: 400px; }
-    .padlet-btn { background-color: #e74c3c; margin-top: 15px; text-align: center; text-decoration: none; display: block; line-height: 45px; color: white; border-radius: 6px; font-weight: bold; }
+    .padlet-btn { background-color: #e74c3c; margin-top: 15px; display: none; text-align: center; text-decoration: none; display: block; line-height: 45px; color: white; border-radius: 6px; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -99,9 +99,7 @@
   };
 
   let myChart = null;
-  
-  // 복사해오신 Google Apps Script 웹 앱 URL이 입력되었습니다.
-  const GAS_ENDPOINT_URL = "https://script.google.com/macros/s/AKfycbzVMPCXUVBU8BAGvPLk9uUHV4izTg8gb_5tqPE6bVouRHDkheBE5uaOOrnystoWIe97/exec";
+  const GAS_ENDPOINT_URL = "YOUR_GOOGLE_APPS_SCRIPT_WEB_APP_URL"; // GAS 웹앱 배포 URL 입력
 
   document.getElementById('expForm').addEventListener('submit', function(e) {
     e.preventDefault();
