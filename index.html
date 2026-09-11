@@ -33,7 +33,6 @@
         <label for="classNum">학급 선택</label>
         <select id="classNum" required>
           <option value="">반을 선택하세요</option>
-          <!-- 1반부터 14반까지 -->
           <script>
             for(let i=1; i<=14; i++) {
               document.write(`<option value="${i}">1학년 ${i}반</option>`);
@@ -79,8 +78,31 @@
   <a id="padletLink" class="padlet-btn" href="#" target="_blank" style="display:none;">우리 반 Padlet 게시판으로 이동하기 🚀</a>
 </div>
 
-<script>
-  // 학급별 패들렛 URL 매핑
+<!-- ========================================== -->
+<!-- Firebase SDK 설정 (웹 브라우저 전용 모듈 방식) -->
+<!-- ========================================== -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js";
+  import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+  // 제출해주신 Firebase 키 정보
+  const firebaseConfig = {
+    apiKey: "AIzaSyByfpFuV7d2UrYmne98IDNpejg13Fsfkrs",
+    authDomain: "songryetemp.firebaseapp.com",
+    projectId: "songryetemp",
+    storageBucket: "songryetemp.firebasestorage.app",
+    messagingSenderId: "228455049757",
+    appId: "1:228455049757:web:7c1c6db5f77852ed4c74f4",
+    measurementId: "G-2ZG37KBNRR"
+  };
+
+  // Firebase 초기화
+  const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
+  const db = getFirestore(app);
+
+  // 학급별 패들렛 URL
   const padletUrls = {
     1: "https://padlet.com/songryems/1-1-eri9te6z9s03f0ca",
     2: "https://padlet.com/songryems/1-2-zw9qpeke4op1d1vv",
@@ -99,11 +121,8 @@
   };
 
   let myChart = null;
-  
-  // 복사해오신 Google Apps Script 웹 앱 URL이 입력되었습니다.
-  const GAS_ENDPOINT_URL = "https://script.google.com/macros/s/AKfycbzVMPCXUVBU8BAGvPLk9uUHV4izTg8gb_5tqPE6bVouRHDkheBE5uaOOrnystoWIe97/exec";
 
-  document.getElementById('expForm').addEventListener('submit', function(e) {
+  document.getElementById('expForm').addEventListener('submit', async function(e) {
     e.preventDefault();
 
     const classNum = document.getElementById('classNum').value;
@@ -116,12 +135,11 @@
     Papa.parse(fileInput, {
       header: true,
       skipEmptyLines: true,
-      complete: function(results) {
+      complete: async function(results) {
         const timeData = [];
         const tempHotData = [];
         const tempColdData = [];
 
-        // ScienceCube CSV 칼럼 구조 추출 (시간, 채널1, 채널2)
         results.data.forEach(row => {
           const keys = Object.keys(row);
           if(keys.length >= 2) {
@@ -131,23 +149,25 @@
           }
         });
 
-        // 1. 차트 시각화 업데이트
+        // 1. 차트 시각화
         renderChart(timeData, tempHotData, tempColdData, groupNum, hotWater, coldWater);
 
-        // 2. Google Sheets DB 저장을 위한 데이터 패킹 및 전송
-        const payload = {
-          classNum, studentInfo, groupNum, hotWater, coldWater,
-          rawCsv: JSON.stringify(results.data)
-        };
-
-        fetch(GAS_ENDPOINT_URL, {
-          method: 'POST',
-          mode: 'no-cors',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        }).then(() => {
-          alert('데이터 저장 완료!');
-        });
+        // 2. Firebase Cloud Firestore DB에 데이터 저장
+        try {
+          await addDoc(collection(db, "experiment_data"), {
+            classNum: Number(classNum),
+            studentInfo: studentInfo,
+            groupNum: Number(groupNum),
+            hotWater: Number(hotWater),
+            coldWater: Number(coldWater),
+            csvData: JSON.stringify(results.data),
+            createdAt: new Date()
+          });
+          alert('Firebase DB에 성공적으로 저장되었습니다!');
+        } catch (error) {
+          console.error("Firebase 저장 에러:", error);
+          alert('데이터 저장 중 오류가 발생했습니다.');
+        }
 
         // 3. 패들렛 링크 표시
         const padletBtn = document.getElementById('padletLink');
