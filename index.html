@@ -19,7 +19,7 @@
     button { width: 100%; padding: 12px; background-color: #3498db; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold; }
     button:hover { background-color: #2980b9; }
     #chart-container { margin-top: 30px; position: relative; height: 400px; }
-    .padlet-btn { background-color: #e74c3c; margin-top: 15px; display: none; text-align: center; text-decoration: none; display: block; line-height: 45px; color: white; border-radius: 6px; font-weight: bold; }
+    .padlet-btn { background-color: #e74c3c; margin-top: 15px; text-align: center; text-decoration: none; display: block; line-height: 45px; color: white; border-radius: 6px; font-weight: bold; }
   </style>
 </head>
 <body>
@@ -79,7 +79,27 @@
   <a id="padletLink" class="padlet-btn" href="#" target="_blank" style="display:none;">우리 반 Padlet 게시판으로 이동하기 🚀</a>
 </div>
 
-<script>
+<!-- Firebase 모듈 및 메인 스크립트 -->
+<script type="module">
+  // Firebase SDKs 가져오기 (CDN)
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getAnalytics } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics.js";
+
+  // Firebase 설정
+  const firebaseConfig = {
+    apiKey: "AIzaSyByfpFuV7d2UrYmne98IDNpejg13Fsfkrs",
+    authDomain: "songryetemp.firebaseapp.com",
+    projectId: "songryetemp",
+    storageBucket: "songryetemp.firebasestorage.app",
+    messagingSenderId: "228455049757",
+    appId: "1:228455049757:web:6e6b344031d09e894c74f4",
+    measurementId: "G-K0VE2YENE2"
+  };
+
+  // Firebase 초기화
+  const app = initializeApp(firebaseConfig);
+  const analytics = getAnalytics(app);
+
   // 학급별 패들렛 URL 매핑
   const padletUrls = {
     1: "https://padlet.com/songryems/1-1-eri9te6z9s03f0ca",
