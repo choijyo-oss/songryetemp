@@ -1,509 +1,198 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>열평형 실험 보고서 제출</title>
-  <!-- Tailwind CSS -->
-  <script src="https://cdn.tailwindcss.com"></script>
-  <!-- React & ReactDOM -->
-  <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
-  <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
-  <!-- Babel for JSX -->
-  <script src="https://unpkg.com/@babel/standalone/babel.min.min.js"></script>
-  <!-- Chart.js -->
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>열평형 실험 데이터 수집 & 분석</title>
+  <!-- Chart.js 및 PapaParse CDN -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <!-- Lucide Icons -->
-  <script src="https://unpkg.com/lucide@latest"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/PapaParse/5.3.2/papaparse.min.js"></script>
+  <style>
+    body { font-family: 'Noto Sans KR', sans-serif; margin: 20px; background-color: #f8f9fa; }
+    .container { max-width: 900px; margin: 0 auto; background: white; padding: 25px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+    h2 { color: #2c3e50; text-align: center; border-bottom: 2px solid #3498db; padding-bottom: 10px; }
+    .form-group { margin-bottom: 15px; }
+    label { display: block; font-weight: bold; margin-bottom: 5px; }
+    input, select { width: 100%; padding: 10px; border: 1px solid #ccc; border-radius: 6px; box-sizing: border-box; }
+    .row { display: flex; gap: 15px; }
+    .row .form-group { flex: 1; }
+    button { width: 100%; padding: 12px; background-color: #3498db; color: white; border: none; border-radius: 6px; font-size: 16px; cursor: pointer; font-weight: bold; }
+    button:hover { background-color: #2980b9; }
+    #chart-container { margin-top: 30px; position: relative; height: 400px; }
+    .padlet-btn { background-color: #e74c3c; margin-top: 15px; text-align: center; text-decoration: none; display: block; line-height: 45px; color: white; border-radius: 6px; font-weight: bold; }
+  </style>
 </head>
-<body class="bg-slate-50 font-sans text-slate-800 antialiased">
-  <div id="root"></div>
+<body>
 
-  <script type="text/babel">
-    const { useState, useEffect, useRef } = React;
-
-    function ThermalExperimentApp() {
-      // 1. 학생 정보
-      const [classNum, setClassNum] = useState(1);
-      const [groupNum, setGroupNum] = useState(1);
-      const [studentNum, setStudentNum] = useState(1);
-      const [studentNames, setStudentNames] = useState('');
-
-      // 2. 물의 용량 (추천비 & 5개 버튼 제거 반영)
-      const [hotWaterVolume, setHotWaterVolume] = useState(100);
-      const [coldWaterVolume, setColdWaterVolume] = useState(100);
-
-      // 3. 데이터 및 상태
-      const [fileName, setFileName] = useState('');
-      const [dataPoints, setDataPoints] = useState([]);
-      const [parseError, setParseError] = useState('');
-      const [isSubmitting, setIsSubmitting] = useState(false);
-      const [submitSuccess, setSubmitSuccess] = useState(false);
-
-      // 4. 실험관찰 메모 & 소감 (학생 답변용 4가지 문항)
-      const [answers, setAnswers] = useState({
-        q1: '',
-        q2: '',
-        q3: '',
-        q4: ''
-      });
-
-      // 패들렛 주소 목록
-      const padletLinks = {
-        1: 'https://padlet.com/songryems/1-1-eri9te6z9s03f0ca',
-        2: 'https://padlet.com/songryems/1-2-zw9qpeke4op1d1vv',
-        3: 'https://padlet.com/songryems/1-3-l5x64wjmacg2bgq',
-        4: 'https://padlet.com/songryems/1-4-tqahr8tzwskphszs',
-        5: 'https://padlet.com/songryems/1-5-byevw7n4ggnjygp6',
-        6: 'https://padlet.com/songryems/1-6-9ux7f5blkto1yd0f',
-        7: 'https://padlet.com/songryems/1-7-9o14vqfeabsty6ka',
-        8: 'https://padlet.com/songryems/1-8-gdag4jg5v0456d7x',
-        9: 'https://padlet.com/songryems/1-9-nb53p05fszx14r3v',
-        10: 'https://padlet.com/songryems/1-10-y1delt6zs29osj3q',
-        11: 'https://padlet.com/songryems/1-11-a3p7np3wha8qbnoj',
-        12: 'https://padlet.com/songryems/1-12-el3t0qwfuewtkjgh',
-        13: 'https://padlet.com/songryems/1-13-1rw65helw7jcje4l',
-        14: 'https://padlet.com/songryems/1-14-wu4hwar0p6v4swvc',
-      };
-
-      const chartRef = useRef(null);
-      const chartInstanceRef = useRef(null);
-      const fileInputRef = useRef(null);
-
-      // 답변 업데이트 핸들러
-      const handleAnswerChange = (key, value) => {
-        setAnswers((prev) => ({ ...prev, [key]: value }));
-      };
-
-      // 샘플 데이터 생성
-      const handleLoadSample = () => {
-        setParseError('');
-        const sample = [];
-        let hot = 76;
-        let cold = 16;
-        const totalVol = hotWaterVolume + coldWaterVolume;
-        const target = (hot * hotWaterVolume + cold * coldWaterVolume) / totalVol - 0.8;
-
-        for (let t = 0; t <= 180; t += 2) {
-          sample.push({
-            time: t,
-            hotTemp: Number((target + (76 - target) * Math.exp(-t / 40)).toFixed(1)),
-            coldTemp: Number((target - (target - 16) * Math.exp(-t / 35)).toFixed(1))
-          });
-        }
-        setDataPoints(sample);
-        setFileName(`ScienceCube_샘플_${hotWaterVolume}mL_${coldWaterVolume}mL.csv`);
-      };
-
-      // CSV 파일 읽기
-      const handleFileUpload = (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        setParseError('');
-        setFileName(file.name);
-
-        const reader = new FileReader();
-        reader.onload = (event) => {
-          try {
-            const lines = event.target.result.split('\n');
-            const parsed = [];
-            lines.forEach((line) => {
-              const cols = line.split(',').map((c) => c.trim());
-              if (cols.length >= 3) {
-                const t = parseFloat(cols[0]);
-                const h = parseFloat(cols[1]);
-                const c = parseFloat(cols[2]);
-                if (!isNaN(t) && !isNaN(h) && !isNaN(c)) {
-                  parsed.push({ time: t, hotTemp: h, coldTemp: c });
-                }
-              }
-            });
-            if (parsed.length > 0) {
-              setDataPoints(parsed);
-            } else {
-              setParseError('CSV 파일 해석 실패: 올바른 데이터 형식이 아닙니다.');
+<div class="container">
+  <h2>🌡️ 열평형 실험 데이터 제출 및 시각화</h2>
+  
+  <form id="expForm">
+    <div class="row">
+      <div class="form-group">
+        <label for="classNum">학급 선택</label>
+        <select id="classNum" required>
+          <option value="">반을 선택하세요</option>
+          <!-- 1반부터 14반까지 -->
+          <script>
+            for(let i=1; i<=14; i++) {
+              document.write(`<option value="${i}">1학년 ${i}반</option>`);
             }
-          } catch (err) {
-            setParseError('파일을 읽는 도중 오류가 발생했습니다.');
+          </script>
+        </select>
+      </div>
+      <div class="form-group">
+        <label for="studentInfo">학번 및 이름</label>
+        <input type="text" id="studentInfo" placeholder="예: 10501 홍길동" required>
+      </div>
+      <div class="form-group">
+        <label for="groupNum">조 번호</label>
+        <input type="number" id="groupNum" placeholder="예: 3" required>
+      </div>
+    </div>
+
+    <div class="row">
+      <div class="form-group">
+        <label for="hotWater">뜨거운 물의 양 (mL)</label>
+        <input type="number" id="hotWater" placeholder="100" required>
+      </div>
+      <div class="form-group">
+        <label for="coldWater">차거운 물의 양 (mL)</label>
+        <input type="number" id="coldWater" placeholder="100" required>
+      </div>
+    </div>
+
+    <div class="form-group">
+      <label for="csvFile">ScienceCube CSV 파일 업로드</label>
+      <input type="file" id="csvFile" accept=".csv" required>
+    </div>
+
+    <button type="submit" id="submitBtn">데이터 제출 및 비교 그래프 생성</button>
+  </form>
+
+  <!-- 시각화 차트 영역 -->
+  <div id="chart-container">
+    <canvas id="thermalChart"></canvas>
+  </div>
+
+  <!-- 패들렛 이동 버튼 -->
+  <a id="padletLink" class="padlet-btn" href="#" target="_blank" style="display:none;">우리 반 Padlet 게시판으로 이동하기 🚀</a>
+</div>
+
+<script>
+  // 학급별 패들렛 URL 매핑
+  const padletUrls = {
+    1: "https://padlet.com/songryems/1-1-eri9te6z9s03f0ca",
+    2: "https://padlet.com/songryems/1-2-zw9qpeke4op1d1vv",
+    3: "https://padlet.com/songryems/1-3-l5x64wjmacg2bgq",
+    4: "https://padlet.com/songryems/1-4-tqahr8tzwskphszs",
+    5: "https://padlet.com/songryems/1-5-byevw7n4ggnjygp6",
+    6: "https://padlet.com/songryems/1-6-9ux7f5blkto1yd0f",
+    7: "https://padlet.com/songryems/1-7-9o14vqfeabsty6ka",
+    8: "https://padlet.com/songryems/1-8-gdag4jg5v0456d7x",
+    9: "https://padlet.com/songryems/1-9-nb53p05fszx14r3v",
+    10: "https://padlet.com/songryems/1-10-y1delt6zs29osj3q",
+    11: "https://padlet.com/songryems/1-11-a3p7np3wha8qbnoj",
+    12: "https://padlet.com/songryems/1-12-el3t0qwfuewtkjgh",
+    13: "https://padlet.com/songryems/1-13-1rw65helw7jcje4l",
+    14: "https://padlet.com/songryems/1-14-wu4hwar0p6v4swvc"
+  };
+
+  let myChart = null;
+  
+  // 복사해오신 Google Apps Script 웹 앱 URL이 입력되었습니다.
+  const GAS_ENDPOINT_URL = "https://script.google.com/macros/s/AKfycbzVMPCXUVBU8BAGvPLk9uUHV4izTg8gb_5tqPE6bVouRHDkheBE5uaOOrnystoWIe97/exec";
+
+  document.getElementById('expForm').addEventListener('submit', function(e) {
+    e.preventDefault();
+
+    const classNum = document.getElementById('classNum').value;
+    const studentInfo = document.getElementById('studentInfo').value;
+    const groupNum = document.getElementById('groupNum').value;
+    const hotWater = document.getElementById('hotWater').value;
+    const coldWater = document.getElementById('coldWater').value;
+    const fileInput = document.getElementById('csvFile').files[0];
+
+    Papa.parse(fileInput, {
+      header: true,
+      skipEmptyLines: true,
+      complete: function(results) {
+        const timeData = [];
+        const tempHotData = [];
+        const tempColdData = [];
+
+        // ScienceCube CSV 칼럼 구조 추출 (시간, 채널1, 채널2)
+        results.data.forEach(row => {
+          const keys = Object.keys(row);
+          if(keys.length >= 2) {
+            timeData.push(row[keys[0]]);
+            tempHotData.push(parseFloat(row[keys[1]]));
+            if(keys[2]) tempColdData.push(parseFloat(row[keys[2]]));
           }
+        });
+
+        // 1. 차트 시각화 업데이트
+        renderChart(timeData, tempHotData, tempColdData, groupNum, hotWater, coldWater);
+
+        // 2. Google Sheets DB 저장을 위한 데이터 패킹 및 전송
+        const payload = {
+          classNum, studentInfo, groupNum, hotWater, coldWater,
+          rawCsv: JSON.stringify(results.data)
         };
-        reader.readAsText(file, 'UTF-8');
-      };
 
-      // 통계 계산
-      const initialHot = dataPoints.length > 0 ? dataPoints[0].hotTemp : 0;
-      const initialCold = dataPoints.length > 0 ? dataPoints[0].coldTemp : 0;
-      const lastPoint = dataPoints.length > 0 ? dataPoints[dataPoints.length - 1] : null;
-      const equilibriumTemp = lastPoint ? Number(((lastPoint.hotTemp + lastPoint.coldTemp) / 2).toFixed(1)) : 0;
-      const theoreticalTemp = (initialHot > 0 && initialCold > 0) 
-        ? Number(((initialHot * hotWaterVolume + initialCold * coldWaterVolume) / (hotWaterVolume + coldWaterVolume)).toFixed(1)) 
-        : 0;
+        fetch(GAS_ENDPOINT_URL, {
+          method: 'POST',
+          mode: 'no-cors',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        }).then(() => {
+          alert('데이터 저장 완료!');
+        });
 
-      // Chart.js 렌더링
-      useEffect(() => {
-        if (dataPoints.length > 0 && chartRef.current) {
-          if (chartInstanceRef.current) {
-            chartInstanceRef.current.destroy();
+        // 3. 패들렛 링크 표시
+        const padletBtn = document.getElementById('padletLink');
+        padletBtn.href = padletUrls[classNum];
+        padletBtn.style.display = 'block';
+      }
+    });
+  });
+
+  function renderChart(labels, hotData, coldData, group, hotVol, coldVol) {
+    const ctx = document.getElementById('thermalChart').getContext('2d');
+    
+    if(myChart) myChart.destroy();
+
+    myChart = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [
+          {
+            label: `${group}조 뜨거운 물 (${hotVol}mL)`,
+            data: hotData,
+            borderColor: 'rgb(255, 99, 132)',
+            tension: 0.2,
+            fill: false
+          },
+          {
+            label: `${group}조 차거운 물 (${coldVol}mL)`,
+            data: coldData,
+            borderColor: 'rgb(54, 162, 235)',
+            tension: 0.2,
+            fill: false
           }
-
-          const ctx = chartRef.current.getContext('2d');
-          chartInstanceRef.current = new Chart(ctx, {
-            type: 'line',
-            data: {
-              labels: dataPoints.map((d) => d.time + '초'),
-              datasets: [
-                {
-                  label: `뜨거운 물 (${hotWaterVolume}mL)`,
-                  data: dataPoints.map((d) => d.hotTemp),
-                  borderColor: '#ef4444',
-                  backgroundColor: '#ef4444',
-                  borderWidth: 2,
-                  pointRadius: 0,
-                  tension: 0.2
-                },
-                {
-                  label: `찬 물 (${coldWaterVolume}mL)`,
-                  data: dataPoints.map((d) => d.coldTemp),
-                  borderColor: '#0284c7',
-                  backgroundColor: '#0284c7',
-                  borderWidth: 2,
-                  pointRadius: 0,
-                  tension: 0.2
-                }
-              ]
-            },
-            options: {
-              responsive: true,
-              maintainAspectRatio: false,
-              scales: {
-                x: { title: { display: true, text: '시간 (초)' } },
-                y: { title: { display: true, text: '온도 (℃)' } }
-              }
-            }
-          });
+        ]
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        scales: {
+          x: { title: { display: true, text: '시간 (초)' } },
+          y: { title: { display: true, text: '온도 (℃)' } }
         }
-      }, [dataPoints, hotWaterVolume, coldWaterVolume]);
-
-      useEffect(() => {
-        if (window.lucide) {
-          window.lucide.createIcons();
-        }
-      }, []);
-
-      const handleSubmit = (e) => {
-        e.preventDefault();
-        if (dataPoints.length === 0) {
-          setParseError('실험 데이터(CSV)를 먼저 업로드하거나 샘플 데이터를 불러와주세요.');
-          return;
-        }
-        setIsSubmitting(true);
-        setTimeout(() => {
-          setIsSubmitting(false);
-          setSubmitSuccess(true);
-        }, 600);
-      };
-
-      return (
-        <div className="max-w-6xl mx-auto p-4 sm:p-6 space-y-6">
-          {/* Header */}
-          <header className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
-            <div>
-              <h1 className="font-bold text-slate-900 text-xl flex items-center gap-2">
-                🔥 열평형 실험 데이터 제출 및 보고서
-              </h1>
-              <p className="text-xs sm:text-sm text-slate-600 mt-1">
-                ScienceCube 센서 데이터를 확인하고 질문에 답한 뒤 학급 패들렛으로 공유하세요.
-              </p>
-            </div>
-            <a
-              href="https://on.sciencecube.com/"
-              target="_blank"
-              rel="noreferrer"
-              className="inline-flex items-center gap-1.5 px-4 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 text-xs font-semibold rounded-xl border border-indigo-200 transition"
-            >
-              <span>ScienceCube On 접속</span>
-            </a>
-          </header>
-
-          {/* 제출 완료 안내 */}
-          {submitSuccess && (
-            <div className="bg-emerald-50 border border-emerald-200 rounded-2xl p-5 space-y-3">
-              <div className="flex items-center justify-between">
-                <h3 className="font-bold text-emerald-900 text-base">✅ 보고서가 정상 작성되었습니다!</h3>
-                <button
-                  onClick={() => setSubmitSuccess(false)}
-                  className="text-xs text-emerald-700 hover:underline"
-                >
-                  닫기
-                </button>
-              </div>
-              <p className="text-xs sm:text-sm text-emerald-800">
-                1학년 {classNum}반 {groupNum}모둠 제출 준비 완료. 아래 버튼을 눌러 학급 패들렛으로 이동하여 제출하세요.
-              </p>
-              <a
-                href={padletLinks[classNum]}
-                target="_blank"
-                rel="noreferrer"
-                className="inline-block px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-xl transition shadow-xs"
-              >
-                1학년 {classNum}반 패들렛 바로가기 ↗
-              </a>
-            </div>
-          )}
-
-          {/* 메인 폼 */}
-          <form onSubmit={handleSubmit} className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-            {/* 좌측 입력 영역 */}
-            <div className="lg:col-span-5 space-y-5">
-              {/* 1. 학생 정보 */}
-              <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
-                <h3 className="font-bold text-slate-800 text-sm border-b border-slate-100 pb-2">
-                  1. 학생 정보 입력
-                </h3>
-                <div className="grid grid-cols-4 gap-2 text-xs">
-                  <div>
-                    <label className="block text-slate-600 mb-1">학년</label>
-                    <div className="p-2 bg-slate-100 text-center font-bold rounded-xl">1</div>
-                  </div>
-                  <div>
-                    <label className="block text-slate-600 mb-1">반</label>
-                    <select
-                      value={classNum}
-                      onChange={(e) => setClassNum(Number(e.target.value))}
-                      className="w-full p-2 border border-slate-300 rounded-xl font-bold"
-                    >
-                      {Array.from({ length: 14 }, (_, i) => i + 1).map((c) => (
-                        <option key={c} value={c}>{c}반</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-slate-600 mb-1">모둠</label>
-                    <select
-                      value={groupNum}
-                      onChange={(e) => setGroupNum(Number(e.target.value))}
-                      className="w-full p-2 border border-slate-300 rounded-xl font-bold"
-                    >
-                      {Array.from({ length: 10 }, (_, i) => i + 1).map((g) => (
-                        <option key={g} value={g}>{g}모둠</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-slate-600 mb-1">대표 번호</label>
-                    <input
-                      type="number"
-                      min="1"
-                      value={studentNum}
-                      onChange={(e) => setStudentNum(Number(e.target.value))}
-                      className="w-full p-2 border border-slate-300 rounded-xl text-center font-bold"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label className="block text-xs text-slate-600 mb-1">모둠원 이름</label>
-                  <input
-                    type="text"
-                    placeholder="예: 김과학, 이물리, 박화학"
-                    value={studentNames}
-                    onChange={(e) => setStudentNames(e.target.value)}
-                    className="w-full p-2 bg-white border border-slate-300 rounded-xl text-xs"
-                  />
-                </div>
-              </div>
-
-              {/* 2. 물의 용량 설정 (추천 비 및 5개 버튼 제거 반영) */}
-              <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
-                <h3 className="font-bold text-slate-800 text-sm border-b border-slate-100 pb-2">
-                  2. 물의 용량 설정 (mL)
-                </h3>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-2">
-                    <label className="block text-xs font-bold text-rose-800">🔥 뜨거운 물 (비커)</label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        min="10"
-                        max="500"
-                        step="5"
-                        value={hotWaterVolume}
-                        onChange={(e) => setHotWaterVolume(Math.max(1, Number(e.target.value)))}
-                        className="w-full p-2 bg-white border border-rose-300 rounded-lg text-rose-900 font-extrabold text-base pr-8"
-                      />
-                      <span className="absolute right-3 top-2.5 text-xs text-rose-500 font-bold">mL</span>
-                    </div>
-                  </div>
-                  <div className="p-3 bg-sky-50 border border-sky-200 rounded-xl space-y-2">
-                    <label className="block text-xs font-bold text-sky-800">💧 찬 물 (음료수 컵)</label>
-                    <div className="relative">
-                      <input
-                        type="number"
-                        min="10"
-                        max="500"
-                        step="5"
-                        value={coldWaterVolume}
-                        onChange={(e) => setColdWaterVolume(Math.max(1, Number(e.target.value)))}
-                        className="w-full p-2 bg-white border border-sky-300 rounded-lg text-sky-900 font-extrabold text-base pr-8"
-                      />
-                      <span className="absolute right-3 top-2.5 text-xs text-sky-500 font-bold">mL</span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* 3. CSV 데이터 업로드 */}
-              <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-3">
-                <div className="flex items-center justify-between border-b border-slate-100 pb-2">
-                  <h3 className="font-bold text-slate-800 text-sm">3. ScienceCube CSV 데이터</h3>
-                  <button
-                    type="button"
-                    onClick={handleLoadSample}
-                    className="text-[11px] text-indigo-600 bg-indigo-50 px-2 py-1 rounded-md font-semibold hover:bg-indigo-100"
-                  >
-                    ✨ 샘플 생성
-                  </button>
-                </div>
-                <div
-                  onClick={() => fileInputRef.current?.click()}
-                  className="border-2 border-dashed border-slate-300 hover:border-blue-400 bg-slate-50/70 p-4 rounded-xl text-center cursor-pointer"
-                >
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept=".csv"
-                    className="hidden"
-                    onChange={handleFileUpload}
-                  />
-                  {fileName ? (
-                    <p className="font-bold text-xs text-emerald-700 truncate">{fileName}</p>
-                  ) : (
-                    <p className="text-xs font-semibold text-slate-600">📂 ScienceCube CSV 파일 클릭하여 선택</p>
-                  )}
-                </div>
-                {parseError && <p className="text-xs text-rose-600">{parseError}</p>}
-              </div>
-
-              {/* 4. 실험관찰 메모 & 소감 (4가지 문항 답변란) */}
-              <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
-                <h3 className="font-bold text-slate-800 text-sm border-b border-slate-100 pb-2">
-                  4. 실험관찰 메모 & 소감
-                </h3>
-                <div className="space-y-3 text-xs">
-                  <div className="space-y-1">
-                    <label className="block font-semibold text-slate-700">
-                      1. 시간이 흐름에 따라 찬물과 뜨거운 물의 온도는 각각 어떻게 변하는가?
-                    </label>
-                    <textarea
-                      rows="2"
-                      placeholder="답변을 입력하세요..."
-                      value={answers.q1}
-                      onChange={(e) => handleAnswerChange('q1', e.target.value)}
-                      className="w-full p-2 border border-slate-300 rounded-xl"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block font-semibold text-slate-700">
-                      2. 시간이 흐름에 따라 찬물과 뜨거운 물의 온도가 변하는 까닭을 설명해 보자.
-                    </label>
-                    <textarea
-                      rows="2"
-                      placeholder="답변을 입력하세요..."
-                      value={answers.q2}
-                      onChange={(e) => handleAnswerChange('q2', e.target.value)}
-                      className="w-full p-2 border border-slate-300 rounded-xl"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block font-semibold text-slate-700">
-                      3. 충분한 시간이 지난 뒤 찬물과 뜨거운 물에서의 물 입자의 운동을 설명해 보자.
-                    </label>
-                    <textarea
-                      rows="2"
-                      placeholder="답변을 입력하세요..."
-                      value={answers.q3}
-                      onChange={(e) => handleAnswerChange('q3', e.target.value)}
-                      className="w-full p-2 border border-slate-300 rounded-xl"
-                    />
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="block font-semibold text-slate-700">
-                      4. 두 물의 온도가 같아지는 온도는 두 값의 중간값과 어떤 차이가 있는지, 그 이유를 설명해 보자.
-                    </label>
-                    <textarea
-                      rows="2"
-                      placeholder="답변을 입력하세요..."
-                      value={answers.q4}
-                      onChange={(e) => handleAnswerChange('q4', e.target.value)}
-                      className="w-full p-2 border border-slate-300 rounded-xl"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <button
-                type="submit"
-                disabled={isSubmitting || dataPoints.length === 0}
-                className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 disabled:bg-slate-300 text-white font-bold rounded-xl shadow-md transition text-sm"
-              >
-                {isSubmitting ? '제출 중...' : `${classNum}반 ${groupNum}모둠 실험 보고서 저장`}
-              </button>
-            </div>
-
-            {/* 우측 그래프 및 분석 */}
-            <div className="lg:col-span-7 space-y-5">
-              <div className="bg-white rounded-2xl p-5 border border-slate-200 shadow-sm space-y-4">
-                <h3 className="font-bold text-slate-800 text-base border-b border-slate-100 pb-3">
-                  실시간 온도 변화 그래프
-                </h3>
-                <div className="h-72 w-full relative">
-                  {dataPoints.length > 0 ? (
-                    <canvas ref={chartRef}></canvas>
-                  ) : (
-                    <div className="h-full flex items-center justify-center border border-dashed border-slate-200 rounded-xl text-slate-400 text-xs">
-                      CSV 파일을 선택하거나 샘플 생성을 눌러주세요.
-                    </div>
-                  )}
-                </div>
-              </div>
-
-              {/* 통계 요약 카드 */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-                  <span className="text-[11px] text-slate-500 font-medium">뜨거운 물 시작</span>
-                  <p className="text-lg font-bold text-rose-600 mt-0.5">
-                    {initialHot > 0 ? `${initialHot} ℃` : '-'}
-                  </p>
-                </div>
-                <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs">
-                  <span className="text-[11px] text-slate-500 font-medium">찬 물 시작</span>
-                  <p className="text-lg font-bold text-sky-600 mt-0.5">
-                    {initialCold > 0 ? `${initialCold} ℃` : '-'}
-                  </p>
-                </div>
-                <div className="bg-purple-50 p-4 rounded-xl border border-purple-200 shadow-xs">
-                  <span className="text-[11px] text-purple-700 font-bold">실험 열평형 온도</span>
-                  <p className="text-lg font-extrabold text-purple-700 mt-0.5">
-                    {equilibriumTemp > 0 ? `${equilibriumTemp} ℃` : '-'}
-                  </p>
-                </div>
-                <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 shadow-xs">
-                  <span className="text-[11px] text-amber-800 font-bold">이론적 열평형</span>
-                  <p className="text-lg font-bold text-amber-700 mt-0.5">
-                    {theoreticalTemp > 0 ? `${theoreticalTemp} ℃` : '-'}
-                  </p>
-                </div>
-              </div>
-            </div>
-          </form>
-        </div>
-      );
-    }
-
-    const root = ReactDOM.createRoot(document.getElementById('root'));
-    root.render(<ThermalExperimentApp />);
-  </script>
+      }
+    });
+  }
+</script>
 </body>
 </html>
